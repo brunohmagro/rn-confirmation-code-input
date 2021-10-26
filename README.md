@@ -1,4 +1,4 @@
-# react-native-confirmation-code-input
+# rn-confirmation-code-input
 A react-native confirmation code input for both IOS and Android
 
 ## Features
