@@ -1,6 +1,6 @@
 import React, {Component} from 'react';
 import PropTypes from 'prop-types';
-import { View, TextInput, StyleSheet, Dimensions, ViewPropTypes } from 'react-native';
+import { View, TextInput, StyleSheet, ViewPropTypes } from 'react-native';
 import _ from 'lodash';
 
 // if ViewPropTypes is not defined fall back to View.propType (to support RN < 0.44)
@@ -44,7 +44,7 @@ export default class ConfirmationCodeInput extends Component {
     
     this.state = {
       codeArr: new Array(this.props.codeLength).fill(''),
-      currentIndex: 0
+      currentIndex: 0,
     };
     
     this.codeInputRefs = [];
@@ -64,7 +64,7 @@ export default class ConfirmationCodeInput extends Component {
   clear() {
     this.setState({
       codeArr: new Array(this.props.codeLength).fill(''),
-      currentIndex: 0
+      currentIndex: 0,
     });
     this._setFocus(0);
   }
@@ -78,8 +78,9 @@ export default class ConfirmationCodeInput extends Component {
   }
   
   _onFocus(index) {
-    let newCodeArr = _.clone(this.state.codeArr);
+    const newCodeArr = _.clone(this.state.codeArr);
     const currentEmptyIndex = _.findIndex(newCodeArr, c => !c);
+
     if (currentEmptyIndex !== -1 && currentEmptyIndex < index) {
       return this._setFocus(currentEmptyIndex);
     }
@@ -97,9 +98,9 @@ export default class ConfirmationCodeInput extends Component {
   
   _isMatchingCode(code, compareWithCode, ignoreCase = false) {
     if (ignoreCase) {
-      return code.toLowerCase() == compareWithCode.toLowerCase();
+      return code.toLowerCase() === compareWithCode.toLowerCase();
     }
-    return code == compareWithCode;
+    return code === compareWithCode;
   }
   
   _getContainerStyle(size, position) {
@@ -153,7 +154,7 @@ export default class ConfirmationCodeInput extends Component {
   
   _getClassStyle(className, active) {
     const { cellBorderWidth, activeColor, inactiveColor, space } = this.props;
-    let classStyle = {
+    const classStyle = {
       ...this._getInputSpaceStyle(space),
       color: activeColor
     };
@@ -197,7 +198,7 @@ export default class ConfirmationCodeInput extends Component {
   _onKeyPress(e) {
     if (e.nativeEvent.key === 'Backspace') {
       const { currentIndex } = this.state;
-      let newCodeArr = _.clone(this.state.codeArr);
+      const newCodeArr = _.clone(this.state.codeArr);
       const nextIndex = currentIndex > 0 ? currentIndex - 1 : 0;
       for (const i in newCodeArr) {
         if (i >= nextIndex) {
@@ -212,29 +213,50 @@ export default class ConfirmationCodeInput extends Component {
   _onInputCode(character, index) {
     const { codeLength, onFulfill, compareWithCode, ignoreCase, onCodeChange } = this.props;
     let newCodeArr = _.clone(this.state.codeArr);
+    let isPasteAction = false;
     newCodeArr[index] = character;
-    
-    if (index == codeLength - 1) {
-      const code = newCodeArr.join('');
-      
-      if (compareWithCode) {
-        const isMatching = this._isMatchingCode(code, compareWithCode, ignoreCase);
-        onFulfill(isMatching, code);
-        !isMatching && this.clear();
-      } else {
-        onFulfill(code);
+    if (character.length > codeLength) {
+      return;
+    }
+    if (index === 0 && character.length > 1) {
+      newCodeArr = character.split('');
+      if (character.length < codeLength) {
+        this._setFocus(codeLength -1);
+      } else if (character.length === codeLength) {
+        this._blur(index)
       }
-      this._blur(this.state.currentIndex);
-    } else {
-      this._setFocus(this.state.currentIndex + 1);
+      index = character.length -1;
+      isPasteAction = true;
     }
     
-    this.setState(prevState => {
-      return {
+      this.setState({
         codeArr: newCodeArr,
-        currentIndex: prevState.currentIndex + 1
-      };
-    }, () => { onCodeChange(newCodeArr.join('')) });
+        currentIndex: isPasteAction ? -1 : index,
+      }, () => { 
+        if (index === codeLength - 1) {
+          const code = newCodeArr.join('');
+  
+          if (compareWithCode) {
+            const isMatching = this._isMatchingCode(code, compareWithCode, ignoreCase);
+            let timeout = 0;
+            if (isPasteAction) {
+              timeout = 100;
+            }
+            setTimeout(() => {
+              onFulfill(isMatching, code);
+              !isMatching && this.clear();
+            }, timeout);
+          } else {
+            onFulfill(code);
+          }
+          if (!isPasteAction) {
+            this._blur(this.state.currentIndex);
+          }
+        } else {
+          this._setFocus(this.state.currentIndex + 1);
+        }
+        onCodeChange(newCodeArr.join(''))
+      });
   }
   
   render() {
@@ -246,6 +268,7 @@ export default class ConfirmationCodeInput extends Component {
       autoFocus,
       className,
       size,
+      textContentType,
       activeColor
     } = this.props;
     
@@ -254,7 +277,7 @@ export default class ConfirmationCodeInput extends Component {
       height: size
     };
     
-    let codeInputs = [];
+    const codeInputs = [];
     for (let i = 0; i < codeLength; i++) {
       const id = i;
       codeInputs.push(
@@ -264,20 +287,21 @@ export default class ConfirmationCodeInput extends Component {
           style={[
             styles.codeInput, 
             initialCodeInputStyle, 
-            this._getClassStyle(className, this.state.currentIndex == id),
+            this._getClassStyle(className, this.state.currentIndex === id),
             codeInputStyle
           ]}
           underlineColorAndroid="transparent"
           selectionColor={activeColor}
           keyboardType={'name-phone-pad'}
           returnKeyType={'done'}
+          textContentType={textContentType}
           {...this.props}
-          autoFocus={autoFocus && id == 0}
+          autoFocus={autoFocus && id === 0}
           onFocus={() => this._onFocus(id)}
           value={this.state.codeArr[id] ? this.state.codeArr[id].toString() : ''}
           onChangeText={text => this._onInputCode(text, id)}
           onKeyPress={(e) => this._onKeyPress(e)}
-          maxLength={1}
+          maxLength={(i === 0 && textContentType === 'oneTimeCode' ) ? undefined : 1}
         />
       )
     }
@@ -299,6 +323,6 @@ const styles = StyleSheet.create({
   codeInput: {
     backgroundColor: 'transparent',
     textAlign: 'center',
-    padding: 0
+    padding: 0,
   }
 });
