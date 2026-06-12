@@ -37,6 +37,7 @@ export default class ConfirmationCodeInput extends Component {
     space: 8,
     compareWithCode: '',
     ignoreCase: false,
+    onCodeChange: () => null,
   };
   
   constructor(props) {
@@ -70,11 +71,15 @@ export default class ConfirmationCodeInput extends Component {
   }
   
   _setFocus(index) {
-    this.codeInputRefs[index].focus();
+    if (this.codeInputRefs[index]) {
+      this.codeInputRefs[index].focus();
+    }
   }
   
   _blur(index) {
-    this.codeInputRefs[index].blur();
+    if (this.codeInputRefs[index]) {
+      this.codeInputRefs[index].blur();
+    }
   }
   
   _onFocus(index) {
@@ -214,24 +219,30 @@ export default class ConfirmationCodeInput extends Component {
     const { codeLength, onFulfill, compareWithCode, ignoreCase, onCodeChange } = this.props;
     let newCodeArr = _.clone(this.state.codeArr);
     let isPasteAction = false;
-    newCodeArr[index] = character;
-    if (character.length > codeLength) {
-      return;
+
+    if (character.length > codeLength - index) {
+      character = character.slice(0, codeLength - index);
     }
-    if (index === 0 && character.length > 1) {
-      newCodeArr = character.split('');
-      if (character.length < codeLength) {
-        this._setFocus(codeLength -1);
-      } else if (character.length === codeLength) {
-        this._blur(index)
+
+    if (character.length > 1) {
+      const pastedCharacters = character.split('');
+      pastedCharacters.forEach((codeCharacter, offset) => {
+        newCodeArr[index + offset] = codeCharacter;
+      });
+
+      if (this.codeInputRefs[index] && this.codeInputRefs[index].setNativeProps) {
+        this.codeInputRefs[index].setNativeProps({ text: pastedCharacters[0] });
       }
-      index = character.length -1;
+
+      index = Math.min(index + pastedCharacters.length - 1, codeLength - 1);
       isPasteAction = true;
+    } else {
+      newCodeArr[index] = character;
     }
     
       this.setState({
         codeArr: newCodeArr,
-        currentIndex: isPasteAction ? -1 : index,
+        currentIndex: index,
       }, () => { 
         if (index === codeLength - 1) {
           const code = newCodeArr.join('');
@@ -249,11 +260,11 @@ export default class ConfirmationCodeInput extends Component {
           } else {
             onFulfill(code);
           }
-          if (!isPasteAction) {
-            this._blur(this.state.currentIndex);
-          }
-        } else {
+          this._blur(this.state.currentIndex);
+        } else if (!isPasteAction) {
           this._setFocus(this.state.currentIndex + 1);
+        } else {
+          this._setFocus(index + 1);
         }
         onCodeChange(newCodeArr.join(''))
       });
