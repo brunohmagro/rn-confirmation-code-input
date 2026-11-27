@@ -214,24 +214,34 @@ export default class ConfirmationCodeInput extends Component {
     const { codeLength, onFulfill, compareWithCode, ignoreCase, onCodeChange } = this.props;
     let newCodeArr = _.clone(this.state.codeArr);
     let isPasteAction = false;
-    newCodeArr[index] = character;
     if (character.length > codeLength) {
       return;
     }
-    if (index === 0 && character.length > 1) {
-      newCodeArr = character.split('');
-      if (character.length < codeLength) {
-        this._setFocus(codeLength -1);
-      } else if (character.length === codeLength) {
-        this._blur(index)
+    if (character.length > 1) {
+      // Paste action: distribute the characters across the cells starting at
+      // the focused one. On iOS the full pasted string would otherwise flash
+      // inside the first input before being split, so clear the native field
+      // explicitly and write only single characters into the state.
+      this.codeInputRefs[index] && this.codeInputRefs[index].setNativeProps({ text: '' });
+      const characters = character.slice(0, codeLength - index).split('');
+      characters.forEach((char, offset) => {
+        newCodeArr[index + offset] = char;
+      });
+      const lastFilledIndex = Math.min(index + characters.length, codeLength) - 1;
+      if (index + characters.length < codeLength) {
+        this._setFocus(index + characters.length);
+      } else {
+        this._blur(lastFilledIndex);
       }
-      index = character.length -1;
+      index = lastFilledIndex;
       isPasteAction = true;
+    } else {
+      newCodeArr[index] = character;
     }
-    
+
       this.setState({
         codeArr: newCodeArr,
-        currentIndex: isPasteAction ? -1 : index,
+        currentIndex: index,
       }, () => { 
         if (index === codeLength - 1) {
           const code = newCodeArr.join('');
